@@ -1,0 +1,24 @@
+---
+
+name: "python"
+
+templates:
+  -
+    name: ".gitignore"
+    contents: |-
+      # Byte-compiled / optimized / DLL files
+      __pycache__/
+      *.py[cod]
+      *$py.class
+
+      # C extensions
+      *.so
+
+  -
+    name: "{{{project_name}}}"
+    contents:
+      -
+        name: "__init__.py"
+        contents: |-
+          __author__ = "{{{author}}}"
+          __version__ = "0.1.0"

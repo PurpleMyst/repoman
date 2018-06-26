@@ -1,6 +1,18 @@
 [package]
-name = "gitman"
+name = "repoman"
 version = "0.1.0"
 authors = ["Purple Myst <PurpleMyst@users.noreply.github.com>"]
 
 [dependencies]
+clap = "2.31.2"
+colored = "1.6.0"
+handlebars = "0.32.4"
+serde_json = "1.0.22"
+toml = "0.4.6"
+serde_derive = "1.0.66"
+serde = "1.0.66"
+serde_yaml = "0.7.5"
+failure = "0.1.1"
+log = "0.3"
+pretty_logger = "0.1.8"
+ansi_term = "0.10.0"
