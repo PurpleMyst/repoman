@@ -1,5 +1,4 @@
 ---
 
-name: "default"
-
-templates: []
+name: "{{project_name}}"
+contents: []

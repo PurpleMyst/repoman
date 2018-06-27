@@ -22,6 +22,7 @@ extern crate pretty_logger;
 extern crate directories;
 
 use std::{
+    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     process,
@@ -32,13 +33,7 @@ struct Repo {
     path: PathBuf,
 }
 
-#[derive(Deserialize, Debug)]
-struct TemplateInfo {
-    name: String,
-    templates: Vec<Template>,
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 enum Template {
     File {
@@ -53,44 +48,35 @@ enum Template {
 }
 
 impl Template {
-    fn create(&self, registry: &Handlebars, vars: &impl serde::Serialize) -> Result<()> {
+    fn create(&self, registry: &Handlebars, vars: &impl serde::Serialize) -> Result<PathBuf> {
         match self {
             Template::File { name, contents } => {
                 let name = PathBuf::from(registry.render_template(name, vars)?);
                 let contents = registry.render_template(contents, vars)?;
-                info!("Creating file {:?}", name.canonicalize()?);
-                std::fs::write(name, contents)?;
-                Ok(())
+                info!("Creating file {:?}", name);
+                std::fs::write(&name, contents)?;
+                Ok(name)
             }
 
             Template::Directory { name, contents } => {
                 let name = PathBuf::from(registry.render_template(name, vars)?);
                 let old_wd = env::current_dir()?;
-                info!("Creating directory {:?}", name.canonicalize()?);
+                info!("Creating directory {:?}", name);
                 fs::create_dir_all(&name)?;
                 env::set_current_dir(&name)?;
                 contents
                     .iter()
-                    .map(|template| template.create(registry, vars))
+                    .map(|template| template.create(registry, vars).map(|_| ()))
                     .collect::<Result<()>>()?;
                 env::set_current_dir(old_wd)?;
-                Ok(())
+                Ok(name)
             }
         }
     }
 }
 
-impl TemplateInfo {
-    fn create(&self, registry: &Handlebars, vars: &impl serde::Serialize) -> Result<()> {
-        self.templates
-            .iter()
-            .map(|template| template.create(registry, vars))
-            .collect()
-    }
-}
-
 fn main() -> Result<()> {
-    pretty_logger::init_level(log::LogLevelFilter::Info)?;
+    pretty_logger::init_level(log::LogLevelFilter::Trace)?;
     let project_dirs = directories::ProjectDirs::from("it", "PurpleMyst", "repoman");
     let config_dir = project_dirs.config_dir();
     let repos_file = config_dir.join("repos.yaml");
@@ -172,24 +158,21 @@ fn main() -> Result<()> {
                 process::exit(1);
             }
 
-            info!("Creating directory {:?}", project_name);
-            fs::create_dir(project_name)?;
-            repos.push(Repo {
-                path: project_name.canonicalize()?.to_owned(),
-            });
-
             let registry = handlebars::Handlebars::new();
-            let mut template_vars = ::std::collections::HashMap::new();
+
+            let mut template_vars = HashMap::new();
             template_vars.insert("project_name", project_name.to_str().unwrap());
             template_vars.insert("author", "PurpleMyst");
-            let template_info: TemplateInfo = serde_yaml::from_reader(&fs::File::open(
+
+            let template: Template = serde_yaml::from_reader(&fs::File::open(
                 template_dir.join(template.to_owned() + ".yaml"),
             )?)?;
 
-            let old_wd = env::current_dir()?;
-            env::set_current_dir(project_name)?;
-            template_info.create(&registry, &template_vars)?;
-            env::set_current_dir(old_wd)?;
+            let repo_path = template.create(&registry, &template_vars)?;
+
+            repos.push(Repo {
+                path: repo_path.canonicalize()?.to_owned(),
+            });
         }
 
         ("label", Some(_sub_matches)) => unimplemented!("label"),
@@ -205,6 +188,7 @@ fn main() -> Result<()> {
         _ => unreachable!(),
     }
 
+    trace!("Saving repos ...");
     serde_yaml::to_writer(fs::File::create(repos_file)?, &repos)?;
 
     Ok(())
