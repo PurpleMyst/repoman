@@ -81,7 +81,13 @@ impl RepoManager {
         template_vars
     }
 
-    pub fn create_repo(&mut self, project_name: &Path, template_name: &str) -> Result<()> {
+    pub fn create_repo<P: AsRef<Path>>(
+        &mut self,
+        project_name: P,
+        template_name: &str,
+    ) -> Result<()> {
+        let project_name = project_name.as_ref();
+
         if project_name.exists() {
             bail!("Destination {:?} already exists.", project_name);
         }
