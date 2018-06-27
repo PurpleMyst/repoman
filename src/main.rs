@@ -21,7 +21,16 @@ extern crate pretty_logger;
 
 extern crate directories;
 
-use std::{env, fs, path::Path, process};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process,
+};
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Repo {
+    path: PathBuf,
+}
 
 #[derive(Deserialize, Debug)]
 struct TemplateInfo {
@@ -47,17 +56,17 @@ impl Template {
     fn create(&self, registry: &Handlebars, vars: &impl serde::Serialize) -> Result<()> {
         match self {
             Template::File { name, contents } => {
-                let name = registry.render_template(name, vars)?;
+                let name = PathBuf::from(registry.render_template(name, vars)?);
                 let contents = registry.render_template(contents, vars)?;
-                info!("Creating file {:?}", name);
+                info!("Creating file {:?}", name.canonicalize()?);
                 std::fs::write(name, contents)?;
                 Ok(())
             }
 
             Template::Directory { name, contents } => {
-                let name = registry.render_template(name, vars)?;
+                let name = PathBuf::from(registry.render_template(name, vars)?);
                 let old_wd = env::current_dir()?;
-                info!("Creating directory {:?}", name);
+                info!("Creating directory {:?}", name.canonicalize()?);
                 fs::create_dir_all(&name)?;
                 env::set_current_dir(&name)?;
                 contents
@@ -84,6 +93,7 @@ fn main() -> Result<()> {
     pretty_logger::init_level(log::LogLevelFilter::Info)?;
     let project_dirs = directories::ProjectDirs::from("it", "PurpleMyst", "repoman");
     let config_dir = project_dirs.config_dir();
+    let repos_file = config_dir.join("repos.yaml");
     let template_dir = config_dir.join("templates");
 
     if !template_dir.exists() {
@@ -98,6 +108,24 @@ fn main() -> Result<()> {
             )?;
         }
     }
+
+    let mut repos: Vec<Repo> = if repos_file.exists() {
+        serde_yaml::from_reader(fs::File::open(&repos_file)?)?
+    } else {
+        Vec::new()
+    };
+
+    repos.retain(|repo| {
+        if !repo.path.exists() {
+            info!(
+                "Removing repo at {:?} from repo list since it no longer exists",
+                repo.path
+            );
+            false
+        } else {
+            true
+        }
+    });
 
     let app_matches = App::new("repoman")
         .version("0.1.0")
@@ -144,7 +172,11 @@ fn main() -> Result<()> {
                 process::exit(1);
             }
 
+            info!("Creating directory {:?}", project_name);
             fs::create_dir(project_name)?;
+            repos.push(Repo {
+                path: project_name.canonicalize()?.to_owned(),
+            });
 
             let registry = handlebars::Handlebars::new();
             let mut template_vars = ::std::collections::HashMap::new();
@@ -172,6 +204,8 @@ fn main() -> Result<()> {
 
         _ => unreachable!(),
     }
+
+    serde_yaml::to_writer(fs::File::create(repos_file)?, &repos)?;
 
     Ok(())
 }
