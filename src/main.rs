@@ -1,3 +1,8 @@
+// TODO: Find a stable replacement for this.
+#![feature(path_ancestors)]
+
+// TODO: Refactor all of the things.
+
 extern crate clap;
 use clap::{App, Arg, SubCommand};
 
@@ -37,8 +42,10 @@ struct Repo {
     labels: Vec<Label>,
 }
 
-fn find_by_path<'a>(repos: &'a mut Vec<Repo>, needle: &Path) -> Option<&'a mut Repo> {
-    repos.into_iter().find(|repo| needle == repo.path)
+fn find_nearest_repo<'a>(repos: &'a mut Vec<Repo>, directory: &Path) -> Option<&'a mut Repo> {
+    repos
+        .iter_mut()
+        .find(|repo| directory.ancestors().any(|ancestor| repo.path == ancestor))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -188,9 +195,9 @@ fn main() -> Result<()> {
         }
 
         ("label", Some(sub_matches)) => {
-            // TODO: Lookup parents too.
-            let mut repo = find_by_path(&mut repos, &env::current_dir()?)
-                .ok_or_else(|| format_err!("The current directory is not a repo."))?;
+            let mut repo = find_nearest_repo(&mut repos, &env::current_dir()?).ok_or_else(|| {
+                format_err!("The current directory or any of its parents are not a repo.")
+            })?;
 
             match sub_matches.subcommand() {
                 ("add", Some(sub_matches)) => {
