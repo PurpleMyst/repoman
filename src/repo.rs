@@ -1,9 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Repo {
     pub path: PathBuf,
-    pub labels: Vec<String>,
+    pub labels: HashSet<String>,
 }
 
 impl Repo {

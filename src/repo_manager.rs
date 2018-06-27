@@ -5,7 +5,7 @@ use handlebars::Handlebars;
 use serde_yaml;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env, fs,
     path::{Path, PathBuf},
 };
@@ -97,7 +97,7 @@ impl RepoManager {
 
         self.repos.push(Repo {
             path: repo_path.canonicalize()?.to_owned(),
-            labels: Vec::new(),
+            labels: HashSet::new(),
         });
 
         Ok(())
@@ -116,7 +116,7 @@ impl RepoManager {
             bail!("The current repo already has the label {:?}", label);
         } else {
             info!("Adding the label {:?} to the current repo.", label);
-            repo.labels.push(label);
+            repo.labels.insert(label);
         }
 
         Ok(())
@@ -126,12 +126,17 @@ impl RepoManager {
         let repo = self.nearest_repo()?;
 
         info!("Removing the label {:?} from the current repo.", label);
-        repo.labels.retain(|l| l != label);
+        if repo.labels.contains(label) {
+            info!("Removing the label {:?} from the current repo.", label);
+            repo.labels.remove(label);
+        } else {
+            bail!("The current repo doesn't have the label {:?}", label);
+        }
 
         Ok(())
     }
 
-    pub fn list_labels(&mut self) -> Result<&Vec<String>> {
+    pub fn list_labels(&mut self) -> Result<&HashSet<String>> {
         let repo = self.nearest_repo()?;
 
         Ok(&repo.labels)

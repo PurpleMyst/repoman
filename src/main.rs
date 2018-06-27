@@ -95,7 +95,7 @@ fn main() -> Result<()> {
                 ("list", Some(_sub_matches)) => {
                     info!(
                         "The current repo has the labels {:?}",
-                        repo_manager.list_labels()
+                        repo_manager.list_labels()?
                     );
                 }
 
