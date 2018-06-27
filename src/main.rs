@@ -11,6 +11,7 @@ extern crate serde_yaml;
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
 extern crate failure;
 type Result<T> = ::std::result::Result<T, failure::Error>;
 
@@ -28,9 +29,16 @@ use std::{
     process,
 };
 
+type Label = String;
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Repo {
     path: PathBuf,
+    labels: Vec<Label>,
+}
+
+fn find_by_path<'a>(repos: &'a mut Vec<Repo>, needle: &Path) -> Option<&'a mut Repo> {
+    repos.into_iter().find(|repo| needle == repo.path)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -131,11 +139,15 @@ fn main() -> Result<()> {
         .subcommand(
             SubCommand::with_name("label")
                 .about("Label the current project")
+                // TODO: `add/remove` should be multiple.
                 .subcommand(
                     SubCommand::with_name("add").arg(Arg::with_name("label").required(true)),
                 )
                 .subcommand(
                     SubCommand::with_name("remove").arg(Arg::with_name("label").required(true)),
+                )
+                .subcommand(
+                    SubCommand::with_name("list")
                 ),
         )
         .subcommand(
@@ -154,7 +166,6 @@ fn main() -> Result<()> {
 
             if project_name.exists() {
                 error!("Destination {:?} already exists.", project_name);
-
                 process::exit(1);
             }
 
@@ -172,10 +183,45 @@ fn main() -> Result<()> {
 
             repos.push(Repo {
                 path: repo_path.canonicalize()?.to_owned(),
+                labels: Vec::new(),
             });
         }
 
-        ("label", Some(_sub_matches)) => unimplemented!("label"),
+        ("label", Some(sub_matches)) => {
+            // TODO: Lookup parents too.
+            let mut repo = find_by_path(&mut repos, &env::current_dir()?)
+                .ok_or_else(|| format_err!("The current directory is not a repo."))?;
+
+            match sub_matches.subcommand() {
+                ("add", Some(sub_matches)) => {
+                    let label = sub_matches.value_of("label").unwrap().to_owned();
+
+                    if repo.labels.contains(&label) {
+                        error!("The current repo already has the label {:?}", label);
+                    } else {
+                        info!("Adding the label {:?} to the current repo.", label);
+                        repo.labels.push(label);
+                    }
+                }
+
+                ("remove", Some(sub_matches)) => {
+                    let label = sub_matches.value_of("label").unwrap();
+                    info!("Removing the label {:?} from the current repo.", label);
+                    repo.labels.retain(|l| l != label);
+                }
+
+                ("list", Some(_sub_matches)) => {
+                    info!("The current repo has the labels {:?}", repo.labels);
+                }
+
+                ("", None) => {
+                    // TODO: Do something better here.
+                    eprintln!("{}", app_matches.usage());
+                    std::process::exit(1);
+                }
+                _ => unreachable!(),
+            }
+        }
 
         ("batch", Some(_sub_matches)) => unimplemented!("batch"),
 
