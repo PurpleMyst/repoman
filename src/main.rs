@@ -19,6 +19,8 @@ extern crate log;
 
 extern crate pretty_logger;
 
+extern crate directories;
+
 use std::{env, fs, path::Path, process};
 
 #[derive(Deserialize, Debug)]
@@ -80,10 +82,22 @@ impl TemplateInfo {
 
 fn main() -> Result<()> {
     pretty_logger::init_level(log::LogLevelFilter::Info)?;
+    let project_dirs = directories::ProjectDirs::from("it", "PurpleMyst", "repoman");
+    let config_dir = project_dirs.config_dir();
+    let template_dir = config_dir.join("templates");
 
-    // FIXME: This doesn't work if you run `repoman` from any directory except its own top-level
-    // directory.
-    let template_dir = Path::new("./templates");
+    if !template_dir.exists() {
+        info!("Creating {:?}", template_dir);
+        fs::create_dir_all(&template_dir)?;
+        let prepackaged_template_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+        for entry in fs::read_dir(prepackaged_template_dir)? {
+            let template_path = entry?.path();
+            fs::copy(
+                &template_path,
+                template_dir.join(template_path.file_name().unwrap()),
+            )?;
+        }
+    }
 
     let app_matches = App::new("repoman")
         .version("0.1.0")
