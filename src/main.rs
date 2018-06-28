@@ -1,6 +1,3 @@
-// TODO: Find a stable replacement for this.
-#![feature(path_ancestors)]
-
 extern crate clap;
 use clap::{App, Arg, SubCommand};
 
