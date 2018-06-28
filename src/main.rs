@@ -18,6 +18,8 @@ extern crate pretty_logger;
 
 extern crate directories;
 
+extern crate duct;
+
 mod repo;
 
 mod template;
@@ -106,7 +108,16 @@ fn main() -> Result<()> {
             }
         }
 
-        ("batch", Some(_sub_matches)) => unimplemented!("batch"),
+        ("batch", Some(sub_matches)) => {
+            let label = sub_matches.value_of("label").unwrap();
+            let command = sub_matches.value_of("command").unwrap();
+            let args = sub_matches
+                .values_of("arg")
+                .map(|it| it.collect())
+                .unwrap_or(Vec::new());
+
+            repo_manager.batch(label, command, &args)?;
+        }
 
         ("", None) => {
             // TODO: Do something better here.

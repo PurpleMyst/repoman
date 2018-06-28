@@ -1,6 +1,7 @@
 use super::{repo::Repo, template::Template, Result};
 
 use directories::ProjectDirs;
+use duct;
 use liquid;
 use serde_yaml;
 
@@ -157,5 +158,21 @@ impl RepoManager {
         let repo = self.nearest_repo()?;
 
         Ok(&repo.labels)
+    }
+
+    pub fn batch(&self, label: &str, command: &str, args: &[&str]) -> Result<()> {
+        for repo in &self.repos {
+            if repo.labels.contains(label) {
+                info!("Running in {:?}", repo.path);
+                let old_wd = env::current_dir()?;
+                env::set_current_dir(&repo.path)?;
+                duct::cmd(command, args).run()?;
+                env::set_current_dir(old_wd)?;
+            } else {
+                trace!("Not running in {:?}", repo.path);
+            }
+        }
+
+        Ok(())
     }
 }
