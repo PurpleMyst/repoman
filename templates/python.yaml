@@ -1,6 +1,6 @@
 ---
 
-name: "{{{project_name}}}"
+name: "{{ project_name }}"
 contents:
   -
     name: ".gitignore"
@@ -14,10 +14,14 @@ contents:
       *.so
 
   -
-    name: "{{{project_name}}}"
+    name: "{{ project_name }}"
     contents:
       -
         name: "__init__.py"
         contents: |-
-          __author__ = "{{{author}}}"
-          __version__ = "0.1.0"
+          {%- if author -%}
+          __author__ = "{{ author }}"
+          {%- endif-%}
+          {%- if version -%}
+          __version__ = "{{ version }}"
+          {%- endif-%}

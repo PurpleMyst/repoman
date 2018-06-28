@@ -1,7 +1,7 @@
 extern crate clap;
 use clap::{App, Arg, SubCommand};
 
-extern crate handlebars;
+extern crate liquid;
 
 extern crate serde;
 extern crate serde_yaml;
@@ -26,7 +26,7 @@ mod repo_manager;
 use repo_manager::RepoManager;
 
 fn main() -> Result<()> {
-    pretty_logger::init_level(log::LogLevelFilter::Trace)?;
+    pretty_logger::init_level(log::LogLevelFilter::Info)?;
 
     let app_matches = App::new("repoman")
         .version("0.1.0")

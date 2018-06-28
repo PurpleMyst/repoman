@@ -1,7 +1,6 @@
 use super::Result;
 
-use handlebars::Handlebars;
-use serde::Serialize;
+use liquid;
 
 use std::{env, fs, path::PathBuf};
 
@@ -20,28 +19,30 @@ pub enum Template {
 }
 
 impl Template {
-    pub fn create(&self, registry: &Handlebars, vars: &impl Serialize) -> Result<PathBuf> {
+    pub fn create(&self, parser: &liquid::Parser, globals: &liquid::Object) -> Result<PathBuf> {
         match self {
             Template::File { name, contents } => {
-                let name = PathBuf::from(registry.render_template(name, vars)?);
-                let contents = registry.render_template(contents, vars)?;
+                trace!("Rendering name template {:?} ...", name);
+                let name = parser.parse(name)?.render(&globals)?;
+                trace!("Rendering contents template {:?} ...", contents);
+                let contents = parser.parse(contents)?.render(&globals)?;
                 info!("Creating file {:?}", name);
                 fs::write(&name, contents)?;
-                Ok(name)
+                Ok(PathBuf::from(name))
             }
 
             Template::Directory { name, contents } => {
-                let name = PathBuf::from(registry.render_template(name, vars)?);
+                trace!("Trying to parse and render name template {:?}", name);
+                let name = parser.parse(name)?.render(&globals)?;
                 let old_wd = env::current_dir()?;
                 info!("Creating directory {:?}", name);
                 fs::create_dir_all(&name)?;
                 env::set_current_dir(&name)?;
-                contents
-                    .iter()
-                    .map(|template| template.create(registry, vars).map(|_| ()))
-                    .collect::<Result<()>>()?;
+                for template in contents {
+                    template.create(parser, globals)?;
+                }
                 env::set_current_dir(old_wd)?;
-                Ok(name)
+                Ok(PathBuf::from(name))
             }
         }
     }

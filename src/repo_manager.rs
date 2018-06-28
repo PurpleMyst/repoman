@@ -1,11 +1,11 @@
 use super::{repo::Repo, template::Template, Result};
 
 use directories::ProjectDirs;
-use handlebars::Handlebars;
+use liquid;
 use serde_yaml;
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     env, fs,
     path::{Path, PathBuf},
 };
@@ -19,7 +19,7 @@ pub struct RepoManager {
 
 impl Drop for RepoManager {
     fn drop(&mut self) {
-        trace!("Saving repos ...");
+        debug!("Saving repos ...");
         serde_yaml::to_writer(fs::File::create(&self.repos_file).unwrap(), &self.repos).unwrap();
     }
 }
@@ -63,7 +63,7 @@ impl RepoManager {
     fn prune_removed_repos(repos: &mut Vec<Repo>) {
         repos.retain(|repo| {
             if !repo.path.exists() {
-                info!(
+                trace!(
                     "Removing repo at {:?} from repo list since it no longer exists",
                     repo.path
                 );
@@ -74,11 +74,22 @@ impl RepoManager {
         });
     }
 
-    fn create_template_vars<'a>(&self, project_name: &'a str) -> HashMap<&'static str, &'a str> {
-        let mut template_vars = HashMap::new();
-        template_vars.insert("project_name", project_name);
-        template_vars.insert("author", "PurpleMyst");
-        template_vars
+    fn create_template_globals<'a>(&self, project_name: &'a str) -> liquid::Object {
+        let mut globals = liquid::Object::new();
+
+        macro_rules! fill_globals {
+            ($($key:expr => $value:expr),*,) => {{
+                $(
+                    globals.insert(String::from($key), liquid::Value::scalar($value));
+                )*
+            }}
+        }
+
+        fill_globals!{
+           "project_name" => project_name,
+        }
+
+        globals
     }
 
     pub fn create_repo<P: AsRef<Path>>(
@@ -92,13 +103,13 @@ impl RepoManager {
             bail!("Destination {:?} already exists.", project_name);
         }
 
-        let registry = Handlebars::new();
+        let parser = liquid::ParserBuilder::with_liquid().build();
         let template_path = self.template_dir.join(template_name.to_owned() + ".yaml");
         let template: Template = serde_yaml::from_reader(&fs::File::open(template_path)?)?;
 
         let repo_path = template.create(
-            &registry,
-            &self.create_template_vars(project_name.to_str().unwrap()),
+            &parser,
+            &self.create_template_globals(project_name.to_str().unwrap()),
         )?;
 
         self.repos.push(Repo {
