@@ -1,5 +1,5 @@
 extern crate clap;
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, ArgGroup, SubCommand};
 
 extern crate liquid;
 
@@ -26,6 +26,9 @@ mod template;
 
 mod repo_manager;
 use repo_manager::RepoManager;
+
+mod batch_filter;
+use batch_filter::{BatchFilter, CombinationMode};
 
 fn main() -> Result<()> {
     pretty_logger::init_level(log::LogLevelFilter::Info)?;
@@ -61,7 +64,16 @@ fn main() -> Result<()> {
         .subcommand(
             SubCommand::with_name("batch")
                 .about("Run a batch operation on many projects")
-                .arg(Arg::with_name("label").required(true))
+                .arg(
+                    Arg::with_name("label")
+                        .long("label")
+                        .multiple(true)
+                        .takes_value(true)
+                        .number_of_values(1),
+                )
+                .arg(Arg::with_name("or").long("or").takes_value(false))
+                .arg(Arg::with_name("and").long("and").takes_value(false))
+                .group(ArgGroup::with_name("mode").args(&["or", "and"]))
                 .arg(Arg::with_name("command").required(true))
                 .arg(Arg::with_name("arg").multiple(true)),
         )
@@ -109,14 +121,34 @@ fn main() -> Result<()> {
         }
 
         ("batch", Some(sub_matches)) => {
-            let label = sub_matches.value_of("label").unwrap();
             let command = sub_matches.value_of("command").unwrap();
             let args = sub_matches
                 .values_of("arg")
                 .map(|it| it.collect())
                 .unwrap_or(Vec::new());
 
-            repo_manager.batch(label, command, &args)?;
+            let mut filter: Option<Box<dyn BatchFilter>> = None;
+            let mode = if sub_matches.is_present("or") {
+                CombinationMode::Or
+            } else if sub_matches.is_present("and") {
+                CombinationMode::And
+            } else {
+                CombinationMode::None
+            };
+
+            if let Some(labels) = sub_matches.values_of("label") {
+                for label in labels {
+                    filter = Some(
+                        filter
+                            .combine(mode, batch_filter::VerbatimLabelFilter(label.to_owned()))
+                            .ok_or_else(|| {
+                                format_err!("Can not have more than one filter without specifying a combinator mode.")
+                            })?,
+                    );
+                }
+            }
+
+            repo_manager.batch(filter, command, &args)?;
         }
 
         ("", None) => {

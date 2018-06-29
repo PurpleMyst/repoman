@@ -1,4 +1,4 @@
-use super::{repo::Repo, template::Template, Result};
+use super::{batch_filter::BatchFilter, repo::Repo, template::Template, Result};
 
 use directories::ProjectDirs;
 use duct;
@@ -160,9 +160,9 @@ impl RepoManager {
         Ok(&repo.labels)
     }
 
-    pub fn batch(&self, label: &str, command: &str, args: &[&str]) -> Result<()> {
+    pub fn batch(&self, filter: impl BatchFilter, command: &str, args: &[&str]) -> Result<()> {
         for repo in &self.repos {
-            if repo.labels.contains(label) {
+            if filter.passes_through(repo) {
                 info!("Running in {:?}", repo.path);
                 let old_wd = env::current_dir()?;
                 env::set_current_dir(&repo.path)?;
