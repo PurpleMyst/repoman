@@ -71,12 +71,13 @@ impl BatchFilter for VerbatimLabelFilter {
 
 macro_rules! operator_filter {
     ($name:ident: x $operator:tt y) => {
-        pub struct $name<F1, F2>(F1, F2);
+        pub struct $name<F1, F2>(pub F1, pub F2);
 
         impl<F1, F2> BatchFilter for $name<F1, F2>
         where
             F1: BatchFilter,
-            F2: BatchFilter{
+            F2: BatchFilter,
+        {
             fn passes_through(&self, repo: &Repo) -> bool {
                 self.0.passes_through(repo) $operator self.1.passes_through(repo)
             }
